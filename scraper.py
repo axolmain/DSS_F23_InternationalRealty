@@ -2,9 +2,11 @@
 # other
 import os
 import re
+import time
 from datetime import date
 from time import sleep
 
+import geckodriver_autoinstaller
 from fpdf import FPDF
 from selenium import webdriver
 # search tools
@@ -60,12 +62,11 @@ class Scraper:
         gecko_driver_path = GeckoDriverManager().install()
 
         # Configure WebDriver service
-        service = FirefoxService(executable_path=gecko_driver_path)
-        service.log_path = "geckodriver.log"  # Specify the log path
+        # service = FirefoxService(executable_path=gecko_driver_path)
+        # service.log_path = "geckodriver.log"  # Specify the log path
 
         # Start WebDriver
         self.driver = webdriver.Firefox(
-            service=service,
             options=options
         )
 
@@ -224,18 +225,34 @@ class Scraper:
         url = 'https://www.properstar.com/buy'
         self.driver.get(url)
 
+
+        # press search button
+        search_button_xpath = "/html/body/main/div[1]/div[2]/div[1]/section[1]/div[2]/section/button"
+        search_button_class_name = "autocomplete-cta-button autocomplete-hero-cta btn btn-secondary btn-white btn-lg"
+        search_button = WebDriverWait(self.driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.XPATH, search_button_xpath))
+        )
+        search_button.click()
+
+        time.sleep(2)
+
         # search address
-        search_input_xpath = "/html/body/main/div[1]/div[2]/div[1]/section[1]/div[2]/section/div[2]/div[1]/div/input"
+        search_input_xpath = "/html/body/div[5]/div/div/div/div/div[2]/div[2]/input"
         search_bar = WebDriverWait(self.driver, WAIT_TIME).until(
             EC.presence_of_element_located((By.XPATH, search_input_xpath))
         )
         search_bar.send_keys(self.address)
 
-        # wait for suggestion to load
-        WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "suggestion-link-text"))
+        # get first item
+        first_item_id = "downshift-0-item-0"
+        first_item_xpath = "/html/body/div[5]/div/div/div/div/div[2]/div[3]/div/ul/li[1]"
+
+        first_item_btn = WebDriverWait(self.driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.XPATH, first_item_xpath))
         )
-        search_bar.send_keys(Keys.ENTER)
+        first_item_btn.click()
+
+        time.sleep(2)
 
         # # Find listing from search results
         # listing = re.findall("[^,]*", self.address)
