@@ -1,23 +1,36 @@
-# basics
-# other
-import os
-import re
 import time
-from datetime import date
-from time import sleep
+# basics
+import zipfile
 
-import geckodriver_autoinstaller
-from fpdf import FPDF
+import requests
+import wget as wget
 from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.edge.service import Service as EdgeService
+
+
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
+from webdriver_manager.firefox import GeckoDriverManager
+
 # search tools
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.firefox import GeckoDriverManager
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
+
+# other
+import os, re
+from time import sleep
+from fpdf import FPDF
+from datetime import date
+
+from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
 WAIT_TIME = 5  # seconds
 
@@ -53,27 +66,40 @@ class Scraper:
 
     def start_webdriver(self):
 
-        # Configure options (if any)
-        options = FirefoxOptions()
-        options.profile = webdriver.FirefoxProfile()
-        # options.add_argument('--headless')  # Uncomment if you want to run Firefox headlessly
+        """
+        Starts the webdriver
+        Check out https://pypi.org/project/webdriver-manager/ for more info
+        :return:
+        """
+        try:
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument("--incognito")
+            self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
+        except Exception as e:
+            print(f"An exception occurred with Chrome Driver: {e}")
+            print("Switching to Firefox Driver")
+            try:
+                firefox_options = webdriver.FirefoxOptions()
+                firefox_options.add_argument("--incognito")
+                self.driver = webdriver.Firefox(executable_path=GeckoDriverManager().install())
+            except Exception as e:
+                print(f"An exception occurred with Firefox Driver: {e}")
+                print("Switching to Edge Driver")
+                try:
+                    edge_options = webdriver.EdgeOptions()
+                    edge_options.add_argument("--incognito")
+                    self.driver = webdriver.Edge(service=EdgeService(EdgeChromiumDriverManager().install()))
+                except Exception as e:
+                    print(f"An exception occurred with Edge Driver: {e}")
 
-        # Ensure GeckoDriver is installed and get the path
-        gecko_driver_path = GeckoDriverManager().install()
+        self.driver.set_window_size(1500, 1200)
 
-        # Configure WebDriver service
-        # service = FirefoxService(executable_path=gecko_driver_path)
-        # service.log_path = "geckodriver.log"  # Specify the log path
-
-        # Start WebDriver
-        self.driver = webdriver.Firefox(
-            options=options
-        )
 
     def get_urls(self):
 
         url_methods = [method for method in dir(Scraper) if re.search(r"get_.+_urls", method)]
         for method in url_methods:
+
             # get platform name
             platform = method[len('get_'):-len('_urls')] \
                 .title() \
@@ -183,33 +209,18 @@ class Scraper:
         })
 
     def get_mansion_global_urls(self):
-
-        # load page
-        url = f'https://www.mansionglobal.com/'
-        self.driver.get(url)
-
-        # search address
-        search_bar_css = "input.MGTheme--whitney--3m76N7fd.typography--sans-serif--2NTOffNS"
-        search_bar = WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, search_bar_css))
-        )
-        search_bar.send_keys(self.address)
-
-        # click top result
-        result_xpath = "/html/body/div[1]/div/div/div/header/div[2]/div[2]/div/form/div/div/div/div[1]/div/div[3]/div/div/div/div/div/div/div/button"
-        WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, result_xpath))
-        ).click()
-
-        # load listing
-        WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.url_changes(url)
-        )
-
-        # extract id from listing url
-        listing_url = self.driver.current_url
-        id = listing_url.split('/')[-1]
+        self.driver.get('https://www.mansionglobal.com/');
+        wait = WebDriverWait(self.driver, 5)  # Wait for a maximum of 5 seconds
+        text_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input.MGTheme--whitney--3m76N7fd.typography--sans-serif--2NTOffNS')))
+        address = '481 West Maple Way, Woodside, CA, 94062'
+        text_field.send_keys(address)
+        time.sleep(3)
+        result = self.driver.find_element(By.CSS_SELECTOR, 'button.MGTheme--autoCompleteBtn--Z5auXUtX')
+        result.click()
+        # Zoom out on the browser page (0.8 means 80% of the original size, you can adjust this value)
+        self.driver.execute_script("document.body.style.zoom='0.8'")
+        self.driver.save_screenshot('/Users/chadjohnson123/Library/CloudStorage/OneDrive-BYU-Idaho/DSS/screenshot.png')
+        time.sleep(5) # Let the user actually see something!
 
         # save listing urls
         self.urls.update({
@@ -225,34 +236,18 @@ class Scraper:
         url = 'https://www.properstar.com/buy'
         self.driver.get(url)
 
-
-        # press search button
-        search_button_xpath = "/html/body/main/div[1]/div[2]/div[1]/section[1]/div[2]/section/button"
-        search_button_class_name = "autocomplete-cta-button autocomplete-hero-cta btn btn-secondary btn-white btn-lg"
-        search_button = WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, search_button_xpath))
-        )
-        search_button.click()
-
-        time.sleep(2)
-
         # search address
-        search_input_xpath = "/html/body/div[5]/div/div/div/div/div[2]/div[2]/input"
+        search_input_xpath = "/html/body/main/div[1]/div[2]/div[1]/section[1]/div[2]/section/div[2]/div[1]/div/input"
         search_bar = WebDriverWait(self.driver, WAIT_TIME).until(
             EC.presence_of_element_located((By.XPATH, search_input_xpath))
         )
         search_bar.send_keys(self.address)
 
-        # get first item
-        first_item_id = "downshift-0-item-0"
-        first_item_xpath = "/html/body/div[5]/div/div/div/div/div[2]/div[3]/div/ul/li[1]"
-
-        first_item_btn = WebDriverWait(self.driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, first_item_xpath))
+        # wait for suggestion to load
+        WebDriverWait(self.driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "suggestion-link-text"))
         )
-        first_item_btn.click()
-
-        time.sleep(2)
+        search_bar.send_keys(Keys.ENTER)
 
         # # Find listing from search results
         # listing = re.findall("[^,]*", self.address)
